@@ -1,15 +1,19 @@
 use std::io;
+use std::ops::Range;
 
 use crate::ast::*;
 
-pub fn encode(module: &Module<'_>) -> Vec<u8> {
+pub fn encode(module: &Module<'_>) -> (Vec<u8>, Metadata) {
     use crate::ast::CustomPlace::*;
     use crate::ast::CustomPlaceAnchor::*;
 
     let fields = match &module.kind {
         ModuleKind::Text(fields) => fields,
         ModuleKind::Binary(bytes) => {
-            return bytes.iter().flat_map(|b| b.iter().cloned()).collect();
+            return (
+                bytes.iter().flat_map(|b| b.iter().cloned()).collect(),
+                Metadata::default(),
+            );
         }
     };
 
@@ -96,9 +100,30 @@ pub fn encode(module: &Module<'_>) -> Vec<u8> {
     }
 }
 
+#[derive(Debug, Default, Clone)]
+/// Metadata for an encoded module.
+pub struct Metadata {
+    /// The bytecode ranges of each function's body.
+    pub func_bodies: Vec<Range<usize>>,
+}
+
+impl Metadata {
+    fn append(&mut self, mut other: Metadata) {
+        self.func_bodies.append(&mut other.func_bodies);
+    }
+
+    fn adjust_by(&mut self, delta: usize) {
+        for range in &mut self.func_bodies {
+            range.start += delta;
+            range.end += delta;
+        }
+    }
+}
+
 pub(crate) struct Encoder<'a> {
     bytes: Vec<u8>,
     customs: &'a [&'a Custom<'a>],
+    metadata: Metadata,
 }
 
 impl Encoder<'_> {
@@ -106,7 +131,16 @@ impl Encoder<'_> {
         Encoder {
             bytes: Vec::new(),
             customs,
+            metadata: Metadata::default(),
         }
+    }
+
+    pub fn offset(&self) -> usize {
+        self.bytes.len()
+    }
+
+    pub fn metadata_mut(&mut self) -> &mut Metadata {
+        &mut self.metadata
     }
 
     pub fn extend(&mut self, slice: &[u8]) {
@@ -122,6 +156,9 @@ impl Encoder<'_> {
     }
 
     pub fn nested(&mut self, mut nested: Encoder) {
+        nested.metadata.adjust_by(self.offset());
+        self.metadata.append(nested.metadata);
+
         nested.bytes.len().encode(self);
         self.bytes.extend_from_slice(&nested.bytes);
     }
@@ -149,8 +186,8 @@ impl Encoder<'_> {
         self.custom_sections(CustomPlace::After(anchor));
     }
 
-    fn finish(self) -> Vec<u8> {
-        self.bytes
+    fn finish(self) -> (Vec<u8>, Metadata) {
+        (self.bytes, self.metadata)
     }
 }
 
@@ -591,7 +628,12 @@ impl Encode for Func<'_> {
             locals_compressed.push((1, *ty));
         }
         locals_compressed.encode(&mut tmp);
+
+        let expr_begin = tmp.offset();
         expr.encode(&mut tmp);
+        let expr_end = tmp.offset();
+
+        tmp.metadata_mut().func_bodies.push(expr_begin..expr_end);
 
         e.nested(tmp);
     }

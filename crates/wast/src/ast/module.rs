@@ -1,4 +1,5 @@
 use crate::ast::{self, kw, annotation};
+use crate::binary::Metadata;
 use crate::parser::{Parse, Parser, Result};
 
 pub use crate::resolve::Names;
@@ -108,7 +109,7 @@ impl<'a> Module<'a> {
     ///
     /// This function can return an error for name resolution errors and other
     /// expansion-related errors.
-    pub fn encode(&mut self) -> std::result::Result<Vec<u8>, crate::Error> {
+    pub fn encode(&mut self) -> std::result::Result<(Vec<u8>, Metadata), crate::Error> {
         self.resolve()?;
         Ok(crate::binary::encode(self))
     }

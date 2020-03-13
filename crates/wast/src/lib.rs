@@ -53,6 +53,9 @@ use std::path::{Path, PathBuf};
 #[cfg(feature = "wasm-module")]
 mod binary;
 #[cfg(feature = "wasm-module")]
+pub use binary::Metadata;
+
+#[cfg(feature = "wasm-module")]
 mod resolve;
 
 mod ast;

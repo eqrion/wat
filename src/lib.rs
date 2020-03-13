@@ -72,6 +72,7 @@ use std::fmt;
 use std::path::Path;
 use std::str;
 use wast::parser::{self, ParseBuffer};
+use wast::Metadata;
 
 /// Parses a file on disk as a [WebAssembly Text format][wat] file, or a binary
 /// WebAssembly file
@@ -95,11 +96,11 @@ use wast::parser::{self, ParseBuffer};
 /// ```
 ///
 /// [wat]: http://webassembly.github.io/spec/core/text/index.html
-pub fn parse_file(file: impl AsRef<Path>) -> Result<Vec<u8>> {
+pub fn parse_file(file: impl AsRef<Path>) -> Result<(Vec<u8>, Metadata)> {
     _parse_file(file.as_ref())
 }
 
-fn _parse_file(file: &Path) -> Result<Vec<u8>> {
+fn _parse_file(file: &Path) -> Result<(Vec<u8>, Metadata)> {
     let contents = std::fs::read(file).map_err(|err| Error {
         kind: Box::new(ErrorKind::Io {
             err,
@@ -107,7 +108,7 @@ fn _parse_file(file: &Path) -> Result<Vec<u8>> {
         }),
     })?;
     match parse_bytes(&contents) {
-        Ok(bytes) => Ok(bytes.into_owned()),
+        Ok((bytes, metadata)) => Ok((bytes.into_owned(), metadata)),
         Err(mut e) => {
             if let ErrorKind::Wast(e) = &mut *e.kind {
                 e.set_path(file);
@@ -156,12 +157,12 @@ fn _parse_file(file: &Path) -> Result<Vec<u8>> {
 /// ```
 ///
 /// [wat]: http://webassembly.github.io/spec/core/text/index.html
-pub fn parse_bytes(bytes: &[u8]) -> Result<Cow<'_, [u8]>> {
+pub fn parse_bytes(bytes: &[u8]) -> Result<(Cow<'_, [u8]>, Metadata)> {
     if bytes.starts_with(b"\0asm") {
-        return Ok(bytes.into());
+        return Ok((bytes.into(), Metadata::default()));
     }
     match str::from_utf8(bytes) {
-        Ok(s) => _parse_str(s).map(|s| s.into()),
+        Ok(s) => _parse_str(s).map(|(b, m)| (b.into(), m)),
         Err(_) => Err(Error {
             kind: Box::new(ErrorKind::Custom(format!("input bytes aren't valid utf-8"))),
         }),
@@ -210,11 +211,11 @@ pub fn parse_bytes(bytes: &[u8]) -> Result<Cow<'_, [u8]>> {
 /// ```
 ///
 /// [wat]: http://webassembly.github.io/spec/core/text/index.html
-pub fn parse_str(wat: impl AsRef<str>) -> Result<Vec<u8>> {
+pub fn parse_str(wat: impl AsRef<str>) -> Result<(Vec<u8>, Metadata)> {
     _parse_str(wat.as_ref())
 }
 
-fn _parse_str(wat: &str) -> Result<Vec<u8>> {
+fn _parse_str(wat: &str) -> Result<(Vec<u8>, Metadata)> {
     let buf = ParseBuffer::new(&wat).map_err(|e| Error::cvt(e, wat))?;
     let mut ast = parser::parse::<wast::Wat>(&buf).map_err(|e| Error::cvt(e, wat))?;
     Ok(ast.module.encode().map_err(|e| Error::cvt(e, wat))?)

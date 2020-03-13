@@ -68,7 +68,7 @@ fn run_test(test: &Path, contents: &str, ntests: &AtomicUsize) -> anyhow::Result
     if wast {
         return test_wast(test, contents, ntests);
     }
-    let binary = wat::parse_file(test)?;
+    let (binary, _) = wat::parse_file(test)?;
     ntests.fetch_add(1, SeqCst); // tested the parse
 
     // FIXME(#5) fix these tests
@@ -121,7 +121,7 @@ fn test_wast(test: &Path, contents: &str, ntests: &AtomicUsize) -> anyhow::Resul
                 WastDirective::Module(mut module) => {
                     assert_eq!(expected.is_some(), json.is_some());
 
-                    let actual = module.encode().map_err(|e| adjust!(e))?;
+                    let (actual, _) = module.encode().map_err(|e| adjust!(e))?;
                     ntests.fetch_add(1, SeqCst); // testing encode
                     match module.kind {
                         ModuleKind::Text(_) => {

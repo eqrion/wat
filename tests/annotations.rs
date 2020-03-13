@@ -10,7 +10,7 @@ fn name_annotations() -> anyhow::Result<()> {
 }
 
 fn assert_module_name(name: &str, wat: &str) -> anyhow::Result<()> {
-    let wasm = wat::parse_str(wat)?;
+    let (wasm, _) = wat::parse_str(wat)?;
     let mut found = false;
     for s in get_name_section(&wasm)? {
         match s? {
@@ -35,7 +35,7 @@ fn func_annotations() -> anyhow::Result<()> {
 }
 
 fn assert_func_name(name: &str, wat: &str) -> anyhow::Result<()> {
-    let wasm = wat::parse_str(wat)?;
+    let (wasm, _) = wat::parse_str(wat)?;
     let mut found = false;
     for s in get_name_section(&wasm)? {
         match s? {
@@ -73,7 +73,7 @@ fn local_annotations() -> anyhow::Result<()> {
 }
 
 fn assert_local_name(name: &str, wat: &str) -> anyhow::Result<()> {
-    let wasm = wat::parse_str(wat)?;
+    let (wasm, _) = wat::parse_str(wat)?;
     let mut found = false;
     for s in get_name_section(&wasm)? {
         match s? {
@@ -109,7 +109,7 @@ fn get_name_section(wasm: &[u8]) -> anyhow::Result<NameSectionReader<'_>> {
 
 #[test]
 fn custom_section_order() -> anyhow::Result<()> {
-    let wasm = wat::parse_str(
+    let (wasm, _) = wat::parse_str(
         r#"
             (module
               (@custom "A" "aaa")
