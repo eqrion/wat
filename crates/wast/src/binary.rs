@@ -42,13 +42,9 @@ pub fn encode(module: &Module<'_>) -> Vec<u8> {
         }
     }
 
-    let mut e = Encoder {
-        wasm: Vec::new(),
-        tmp: Vec::new(),
-        customs: &customs,
-    };
-    e.wasm.extend(b"\0asm");
-    e.wasm.extend(b"\x01\0\0\0");
+    let mut e = Encoder::new(&customs);
+    e.extend(b"\0asm");
+    e.extend(b"\x01\0\0\0");
 
     e.custom_sections(BeforeFirst);
     if let Some(gc) = gcs.get(0) {
@@ -81,7 +77,7 @@ pub fn encode(module: &Module<'_>) -> Vec<u8> {
     }
     e.custom_sections(AfterLast);
 
-    return e.wasm;
+    return e.finish();
 
     fn contains_bulk_memory(funcs: &[&crate::ast::Func<'_>]) -> bool {
         funcs
@@ -99,17 +95,28 @@ pub fn encode(module: &Module<'_>) -> Vec<u8> {
 }
 
 struct Encoder<'a> {
-    wasm: Vec<u8>,
-    tmp: Vec<u8>,
+    bytes: Vec<u8>,
     customs: &'a [&'a Custom<'a>],
 }
 
 impl Encoder<'_> {
+    fn new<'a>(customs: &'a [&'a Custom]) -> Encoder<'a> {
+        Encoder {
+            bytes: Vec::new(),
+            customs,
+        }
+    }
+
+    fn extend(&mut self, slice: &[u8]) {
+        self.bytes.extend(slice);
+    }
+
     fn section(&mut self, id: u8, section: &dyn Encode) {
-        self.tmp.truncate(0);
-        section.encode(&mut self.tmp);
-        self.wasm.push(id);
-        self.tmp.encode(&mut self.wasm);
+        let mut nested = Encoder::new(self.customs);
+
+        section.encode(&mut nested.bytes);
+        self.bytes.push(id);
+        nested.bytes.encode(&mut self.bytes);
     }
 
     fn custom_sections(&mut self, place: CustomPlace) {
@@ -126,6 +133,10 @@ impl Encoder<'_> {
             self.section(id, &list)
         }
         self.custom_sections(CustomPlace::After(anchor));
+    }
+
+    fn finish(self) -> Vec<u8> {
+        self.bytes
     }
 }
 
