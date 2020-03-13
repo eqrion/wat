@@ -1,4 +1,5 @@
 use crate::ast::{self, kw};
+use crate::binary::Encoder;
 use crate::parser::{Parse, Parser, Result};
 use std::mem;
 
@@ -303,13 +304,13 @@ macro_rules! instructions {
 
         impl crate::binary::Encode for Instruction<'_> {
             #[allow(non_snake_case)]
-            fn encode(&self, v: &mut Vec<u8>) {
+            fn encode(&self, v: &mut Encoder) {
                 match self {
                     $(
                         Instruction::$name $((instructions!(@first $($arg)*)))? => {
-                            fn encode<'a>($(arg: &instructions!(@ty $($arg)*),)? v: &mut Vec<u8>) {
-                                instructions!(@encode v $($binary)*);
-                                $(<instructions!(@ty $($arg)*) as crate::binary::Encode>::encode(arg, v);)?
+                            fn encode<'a>($(arg: &instructions!(@ty $($arg)*),)? e: &mut Encoder) {
+                                instructions!(@encode e $($binary)*);
+                                $(<instructions!(@ty $($arg)*) as crate::binary::Encode>::encode(arg, e);)?
                             }
                             encode($( instructions!(@first $($arg)*), )? v)
                         }
